@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HinglishScript Compiler</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #13161f;
+    --card:     #1a1e2a;
+    --border:   #252a38;
+    --border2:  #2e3448;
+    --text:     #e8eaf0;
+    --muted:    #7a7f9a;
+    --accent:   #7c6ff7;
+    --accent2:  #a78bfa;
+    --green:    #34d399;
+    --yellow:   #fbbf24;
+    --red:      #f87171;
+    --blue:     #60a5fa;
+    --orange:   #fb923c;
+    --pink:     #f472b6;
+
+    /* phase colors */
+    --p1: #f59e0b;
+    --p2: #10b981;
+    --p3: #8b5cf6;
+    --p4: #3b82f6;
+  }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+  }
+
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--accent), var(--pink));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: white;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 20px; font-weight: 700;
+    background: linear-gradient(90deg, var(--accent2), var(--pink));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  header p { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  .header-badge {
+    margin-left: auto;
+    background: rgba(124,111,247,0.15);
+    border: 1px solid rgba(124,111,247,0.3);
+    color: var(--accent2);
+    font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Main Layout ── */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Phase pipeline ── */
+  .pipeline {
+    grid-column: 1 / -1;
+    padding: 20px 32px 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pipeline-title {
+    font-size: 11px; font-weight: 600;
+    color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .pipeline-steps {
+    display: flex; align-items: center; gap: 0;
+    padding-bottom: 20px;
+    overflow-x: auto;
+  }
+
+  .step {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--border2);
+    background: var(--card);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .step:hover { border-color: var(--accent); }
+
+  .step.active { border-color: var(--step-color, var(--accent)); box-shadow: 0 0 0 1px var(--step-color, var(--accent)), 0 0 20px rgba(124,111,247,0.15); }
+
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    color: var(--step-color, var(--muted));
+    flex-shrink: 0;
+  }
+
+  .step.active .step-num { background: var(--step-color); color: #000; }
+
+  .step-info {}
+  .step-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .step-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .step-status {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border2);
+    margin-left: 6px; flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  .step.done .step-status { background: var(--green); }
+  .step.error .step-status { background: var(--red); }
+
+  .arrow-sep {
+    width: 32px; height: 2px;
+    background: linear-gradient(90deg, var(--border2), transparent);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .arrow-sep::after {
+    content: '';
+    position: absolute; right: 0; top: -3px;
+    border: 4px solid transparent;
+    border-left-color: var(--border2);
+  }
+
+  /* ── Editor & Panels ── */
+  .editor-pane, .output-pane {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .editor-pane { border-right: 1px solid var(--border); }
+
+  .pane-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .pane-title { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .editor-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .line-nums {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 44px;
+    padding: 16px 0;
+    text-align: right;
+    padding-right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--border2);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    user-select: none;
+    overflow: hidden;
+    line-height: 1.6;
+    pointer-events: none;
+  }
+
+  #code-editor {
+    position: absolute; inset: 0;
+    padding: 16px 16px 16px 60px;
+    background: transparent;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    border: none;
+    outline: none;
+    resize: none;
+    width: 100%; height: 100%;
+    tab-size: 2;
+    caret-color: var(--accent);
+    spellcheck: false;
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    padding: 12px 20px;
+    display: flex; gap: 10px; align-items: center;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-family: 'Sora', sans-serif;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+
+  .btn-run {
+    background: linear-gradient(135deg, var(--accent), var(--pink));
+    color: white;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-run:hover { opacity: 0.88; transform: scale(0.98); }
+  .btn-run:active { transform: scale(0.96); }
+
+  .btn-clear {
+    background: var(--card);
+    color: var(--muted);
+    border: 1px solid var(--border2);
+  }
+  .btn-clear:hover { color: var(--text); border-color: var(--muted); }
+
+  .btn-example {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid rgba(124,111,247,0.3);
+    font-size: 12px;
+    margin-left: auto;
+  }
+  .btn-example:hover { background: rgba(124,111,247,0.08); }
+
+  /* ── Output Pane ── */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .tab {
+    padding: 11px 18px;
+    font-size: 12px; font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--tab-color, var(--accent));
+    border-bottom-color: var(--tab-color, var(--accent));
+  }
+
+  .tab-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--tab-color, var(--muted));
+    opacity: 0.6;
+  }
+  .tab.active .tab-dot { opacity: 1; }
+
+  .tab-panels { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+  .panel {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  .panel.active { display: block; }
+
+  /* Token list */
+  .token-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .token-chip {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+
+  /* AST Tree */
+  .ast-tree { line-height: 1.9; }
+  .ast-node { color: var(--accent2); }
+  .ast-key   { color: var(--blue); }
+  .ast-val   { color: var(--green); }
+  .ast-str   { color: var(--orange); }
+
+  /* Semantic */
+  .sem-item { padding: 5px 0; display: flex; align-items: flex-start; gap: 8px; }
+  .sem-ok   { color: var(--green); }
+  .sem-warn { color: var(--yellow); }
+  .sem-err  { color: var(--red); }
+
+  /* Code gen */
+  .gen-code { color: var(--blue); white-space: pre; }
+
+  /* Output console */
+  .console-line { padding: 3px 0; }
+  .console-out  { color: var(--green); }
+  .console-err  { color: var(--red); }
+  .console-warn { color: var(--yellow); }
+  .console-info { color: var(--muted); font-style: italic; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; color: var(--muted);
+    font-family: 'Sora', sans-serif;
+    gap: 8px;
+  }
+  .empty-state .icon { font-size: 32px; opacity: 0.3; }
+  .empty-state p { font-size: 13px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Run animation */
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124,111,247,0.4); }
+    50%       { box-shadow: 0 0 0 6px rgba(124,111,247,0); }
+  }
+  .running { animation: pulse-border 0.6s ease; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 300px 1fr; }
+    .editor-pane { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo-icon">ह</div>
+  <div>
+    <h1>HinglishScript Compiler</h1>
+    <p>Compiler Design Project · Phase 1 Submission</p>
+  </div>
+  <span class="header-badge">All 4 Phases</span>
+</header>
+
+<!-- ── MAIN ── -->
+<div class="main">
+
+  <!-- Phase Pipeline -->
+  <div class="pipeline">
+    <div class="pipeline-title">Compiler Pipeline</div>
+    <div class="pipeline-steps">
+
+      <div class="step" id="step-1" style="--step-color: var(--p1)" onclick="switchTab('tokens')">
+        <div class="step-num">1</div>
+        <div class="step-info">
+          <div class="step-name">Lexer</div>
+          <div class="step-desc">Source → Tokens</div>
+        </div>
+        <div class="step-status"></div>
+      </div>
+
+      <div class="arrow-sep"></div>
+
+      <div class="step" id="step-2" style="--step-color: var(--p2)" onclick="switchTab('ast')">
+        <div class="step-num">2</div>
+        <div class="step-info">
+          <div class="step-name">Parser</div>
+          <div class="step-desc">Tokens → AST</div>
+        </div>
+        <div class="step-status"></div>
+      </div>
+
+      <div class="arrow-sep"></div>
+
+      <div class="step" id="step-3" style="--step-color: var(--p3)" onclick="switchTab('semantic')">
+        <div class="step-num">3</div>
+        <div class="step-info">
+          <div class="step-name">Semantic</div>
+          <div class="step-desc">Type & Scope Check</div>
+        </div>
+        <div class="step-status"></div>
+      </div>
+
+      <div class="arrow-sep"></div>
+
+      <div class="step" id="step-4" style="--step-color: var(--p4)" onclick="switchTab('codegen')">
+        <div class="step-num">4</div>
+        <div class="step-info">
+          <div class="step-name">Code Gen</div>
+          <div class="step-desc">AST → JavaScript</div>
+        </div>
+        <div class="step-status"></div>
+      </div>
+
+      <div class="arrow-sep"></div>
+
+      <div class="step" id="step-5" style="--step-color: var(--pink)" onclick="switchTab('output')">
+        <div class="step-num">▶</div>
+        <div class="step-info">
+          <div class="step-name">Output</div>
+          <div class="step-desc">Run Result</div>
+        </div>
+        <div class="step-status"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Editor Pane -->
+  <div class="editor-pane">
+    <div class="pane-header">
+      <div class="dot" style="background:#f87171"></div>
+      <div class="dot" style="background:#fbbf24"></div>
+      <div class="dot" style="background:#34d399"></div>
+      <span class="pane-title" style="margin-left:6px">main.hin</span>
+    </div>
+
+    <div class="editor-wrapper">
+      <div class="line-nums" id="line-nums">1</div>
+      <textarea id="code-editor" spellcheck="false" autocomplete="off" autocorrect="off"
+        placeholder="// Yahan HinglishScript likho..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-run" onclick="runCompiler()">
+        <span>▶</span> Compile & Run
+      </button>
+      <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+      <button class="btn btn-example" onclick="loadExample(0)">Example 1</button>
+      <button class="btn btn-example" onclick="loadExample(1)">Example 2</button>
+      <button class="btn btn-example" onclick="loadExample(2)">Example 3</button>
+    </div>
+  </div>
+
+  <!-- Output Pane -->
+  <div class="output-pane">
+    <div class="tabs">
+      <div class="tab active" id="tab-tokens" style="--tab-color: var(--p1)" onclick="switchTab('tokens')">
+        <div class="tab-dot"></div>Tokens
+      </div>
+      <div class="tab" id="tab-ast" style="--tab-color: var(--p2)" onclick="switchTab('ast')">
+        <div class="tab-dot"></div>AST
+      </div>
+      <div class="tab" id="tab-semantic" style="--tab-color: var(--p3)" onclick="switchTab('semantic')">
+        <div class="tab-dot"></div>Semantic
+      </div>
+      <div class="tab" id="tab-codegen" style="--tab-color: var(--p4)" onclick="switchTab('codegen')">
+        <div class="tab-dot"></div>Code Gen
+      </div>
+      <div class="tab" id="tab-output" style="--tab-color: var(--pink)" onclick="switchTab('output')">
+        <div class="tab-dot"></div>Output
+      </div>
+    </div>
+
+    <div class="tab-panels">
+      <div class="panel active" id="panel-tokens"><div class="empty-state"><div class="icon">⚡</div><p>Run the compiler to see tokens</p></div></div>
+      <div class="panel" id="panel-ast"><div class="empty-state"><div class="icon">🌳</div><p>Run the compiler to see the AST</p></div></div>
+      <div class="panel" id="panel-semantic"><div class="empty-state"><div class="icon">🔍</div><p>Run the compiler to see semantic analysis</p></div></div>
+      <div class="panel" id="panel-codegen"><div class="empty-state"><div class="icon">⚙️</div><p>Run the compiler to see generated code</p></div></div>
+      <div class="panel" id="panel-output"><div class="empty-state"><div class="icon">▶</div><p>Run the compiler to see output</p></div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── Compiler JS ─────────────────────────────────────────── -->
+<script>
+
+// ══════════════════════════════════════════════
+//  PHASE 1 — LEXER
+// ══════════════════════════════════════════════
+const TokenType = {
+  RAKHO:'RAKHO',AGAR:'AGAR',WARNA:'WARNA',TOH:'TOH',JBTK:'JBTK',
+  KARO:'KARO',DIKHAO:'DIKHAO',KHATAM:'KHATAM',SAHI:'SAHI',GALAT:'GALAT',
+  NUMBER:'NUMBER',STRING:'STRING',IDENT:'IDENT',
+  PLUS:'PLUS',MINUS:'MINUS',MUL:'MUL',DIV:'DIV',MOD:'MOD',
+  EQ:'EQ',EQEQ:'EQEQ',NEQ:'NEQ',LT:'LT',GT:'GT',LTE:'LTE',GTE:'GTE',
+  LPAREN:'LPAREN',RPAREN:'RPAREN',NEWLINE:'NEWLINE',EOF:'EOF',
+};
+
+const KEYWORDS = {
+  rakho:TokenType.RAKHO,agar:TokenType.AGAR,warna:TokenType.WARNA,
+  toh:TokenType.TOH,karo:TokenType.KARO,dikhao:TokenType.DIKHAO,
+  khatam:TokenType.KHATAM,sahi:TokenType.SAHI,galat:TokenType.GALAT,
+};
+
+class Token {
+  constructor(type,value,line){this.type=type;this.value=value;this.line=line;}
+  toString(){return `[${this.type}:${this.value}]`;}
+}
+
+class Lexer {
+  constructor(src){this.src=src;this.pos=0;this.line=1;}
+  peek(o=0){return this.src[this.pos+o]??null;}
+  advance(){const c=this.src[this.pos++];if(c==='\n')this.line++;return c;}
+  skipWS(){while(this.pos<this.src.length&&/[ \t\r]/.test(this.peek()))this.advance();}
+
+  readNum(){
+    let n='';
+    while(this.pos<this.src.length&&/[\d.]/.test(this.peek()))n+=this.advance();
+    return new Token(TokenType.NUMBER,parseFloat(n),this.line);
+  }
+
+  readStr(){
+    this.advance();let s='';
+    while(this.pos<this.src.length&&this.peek()!=='"')s+=this.advance();
+    this.advance();
+    return new Token(TokenType.STRING,s,this.line);
+  }
+
+  readIdent(){
+    let w='';
+    while(this.pos<this.src.length&&/[a-zA-Z_0-9]/.test(this.peek()))w+=this.advance();
+    if(w==='jab'&&this.peek()===' '&&this.src.slice(this.pos+1,this.pos+4)==='tak'){
+      this.advance();this.advance();this.advance();this.advance();
+      return new Token(TokenType.JBTK,'jab tak',this.line);
+    }
+    const kw=KEYWORDS[w.toLowerCase()];
+    return new Token(kw??TokenType.IDENT,w,this.line);
+  }
+
+  tokenize(){
+    const toks=[];
+    while(this.pos<this.src.length){
+      this.skipWS();
+      if(this.pos>=this.src.length)break;
+      const ch=this.peek(),ln=this.line;
+      if(ch==='\n'){this.advance();toks.push(new Token(TokenType.NEWLINE,'\\n',ln));continue;}
+      if(ch==='/'&&this.peek(1)==='/'){while(this.peek()!=='\n'&&this.pos<this.src.length)this.advance();continue;}
+      if(/\d/.test(ch)){toks.push(this.readNum());continue;}
+      if(ch==='"'){toks.push(this.readStr());continue;}
+      if(/[a-zA-Z_]/.test(ch)){toks.push(this.readIdent());continue;}
+      this.advance();
+      if(ch==='='&&this.peek()==='='){this.advance();toks.push(new Token(TokenType.EQEQ,'==',ln));}
+      else if(ch==='!'&&this.peek()==='='){this.advance();toks.push(new Token(TokenType.NEQ,'!=',ln));}
+      else if(ch==='<'&&this.peek()==='='){this.advance();toks.push(new Token(TokenType.LTE,'<=',ln));}
+      else if(ch==='>'&&this.peek()==='='){this.advance();toks.push(new Token(TokenType.GTE,'>=',ln));}
+      else{
+        const m={'+':TokenType.PLUS,'-':TokenType.MINUS,'*':TokenType.MUL,'/':TokenType.DIV,
+                 '%':TokenType.MOD,'=':TokenType.EQ,'<':TokenType.LT,'>':TokenType.GT,
+                 '(':TokenType.LPAREN,')':TokenType.RPAREN};
+        if(m[ch])toks.push(new Token(m[ch],ch,ln));
+        else throw new Error(`Lexer Error: Unknown character '${ch}' at line ${ln}`);
+      }
+    }
+    toks.push(new Token(TokenType.EOF,null,this.line));
+    return toks;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  PHASE 2 — PARSER
+// ══════════════════════════════════════════════
+const N={
+  Program:b=>({type:'Program',body:b}),
+  VarDecl:(n,v)=>({type:'VarDecl',name:n,value:v}),
+  Assign:(n,v)=>({type:'Assign',name:n,value:v}),
+  If:(c,t,e)=>({type:'If',cond:c,then:t,else:e}),
+  While:(c,b)=>({type:'While',cond:c,body:b}),
+  Print:v=>({type:'Print',value:v}),
+  BinOp:(o,l,r)=>({type:'BinOp',op:o,left:l,right:r}),
+  Unary:(o,e)=>({type:'Unary',op:o,expr:e}),
+  Num:v=>({type:'Num',value:v}),
+  Str:v=>({type:'Str',value:v}),
+  Bool:v=>({type:'Bool',value:v}),
+  Ident:n=>({type:'Ident',name:n}),
+};
+
+class Parser {
+  constructor(tokens){this.tokens=tokens;this.pos=0;}
+  peek(){return this.tokens[this.pos];}
+  prev(){return this.tokens[this.pos-1];}
+  isEnd(){return this.peek().type===TokenType.EOF;}
+  check(t){return !this.isEnd()&&this.peek().type===t;}
+  match(...ts){if(ts.some(t=>this.check(t))){this.pos++;return true;}return false;}
+  skipNL(){while(this.check(TokenType.NEWLINE))this.pos++;}
+  expect(t,m){if(this.check(t)){this.pos++;return this.prev();}throw new Error(`Parse Error (line ${this.peek().line}): ${m??'Expected '+t+', got '+this.peek().type}`);}
+
+  parse(){
+    const b=[];this.skipNL();
+    while(!this.isEnd()){b.push(this.statement());this.skipNL();}
+    return N.Program(b);
+  }
+
+  statement(){
+    const t=this.peek();
+    if(t.type===TokenType.RAKHO) return this.varDecl();
+    if(t.type===TokenType.AGAR)  return this.ifStmt();
+    if(t.type===TokenType.JBTK)  return this.whileStmt();
+    if(t.type===TokenType.DIKHAO)return this.printStmt();
+    if(t.type===TokenType.IDENT) return this.assignStmt();
+    throw new Error(`Parse Error (line ${t.line}): Unexpected token '${t.value}'`);
+  }
+
+  varDecl(){
+    this.expect(TokenType.RAKHO);
+    const n=this.expect(TokenType.IDENT,'Expected variable name after rakho').value;
+    this.expect(TokenType.EQ,"Expected '=' after variable name");
+    const v=this.expr();this.skipNL();
+    return N.VarDecl(n,v);
+  }
+
+  assignStmt(){
+    const n=this.expect(TokenType.IDENT).value;
+    this.expect(TokenType.EQ,"Expected '='");
+    const v=this.expr();this.skipNL();
+    return N.Assign(n,v);
+  }
+
+  ifStmt(){
+    this.expect(TokenType.AGAR);const c=this.expr();
+    this.expect(TokenType.TOH,"Expected 'toh' after condition");this.skipNL();
+    const t=[];
+    while(!this.isEnd()&&!this.check(TokenType.WARNA)&&!this.check(TokenType.KHATAM)){t.push(this.statement());this.skipNL();}
+    let e=null;
+    if(this.match(TokenType.WARNA)){this.skipNL();e=[];
+      while(!this.isEnd()&&!this.check(TokenType.KHATAM)){e.push(this.statement());this.skipNL();}
+    }
+    this.expect(TokenType.KHATAM,"Expected 'khatam' to close agar block");this.skipNL();
+    return N.If(c,t,e);
+  }
+
+  whileStmt(){
+    this.expect(TokenType.JBTK);const c=this.expr();
+    this.expect(TokenType.KARO,"Expected 'karo' after condition");this.skipNL();
+    const b=[];
+    while(!this.isEnd()&&!this.check(TokenType.KHATAM)){b.push(this.statement());this.skipNL();}
+    this.expect(TokenType.KHATAM,"Expected 'khatam' to close jab tak block");this.skipNL();
+    return N.While(c,b);
+  }
+
+  printStmt(){
+    this.expect(TokenType.DIKHAO);const v=this.expr();this.skipNL();
+    return N.Print(v);
+  }
+
+  expr(){return this.comparison();}
+
+  comparison(){
+    let l=this.addSub();
+    while(this.match(TokenType.EQEQ,TokenType.NEQ,TokenType.LT,TokenType.GT,TokenType.LTE,TokenType.GTE))
+      l=N.BinOp(this.prev().value,l,this.addSub());
+    return l;
+  }
+
+  addSub(){
+    let l=this.mulDiv();
+    while(this.match(TokenType.PLUS,TokenType.MINUS))l=N.BinOp(this.prev().value,l,this.mulDiv());
+    return l;
+  }
+
+  mulDiv(){
+    let l=this.unary();
+    while(this.match(TokenType.MUL,TokenType.DIV,TokenType.MOD))l=N.BinOp(this.prev().value,l,this.unary());
+    return l;
+  }
+
+  unary(){if(this.match(TokenType.MINUS))return N.Unary('-',this.unary());return this.primary();}
+
+  primary(){
+    const t=this.peek();this.pos++;
+    if(t.type===TokenType.NUMBER)return N.Num(t.value);
+    if(t.type===TokenType.STRING)return N.Str(t.value);
+    if(t.type===TokenType.SAHI)  return N.Bool(true);
+    if(t.type===TokenType.GALAT) return N.Bool(false);
+    if(t.type===TokenType.IDENT) return N.Ident(t.value);
+    if(t.type===TokenType.LPAREN){const e=this.expr();this.expect(TokenType.RPAREN,"Expected ')'");return e;}
+    throw new Error(`Parse Error (line ${t.line}): Unexpected '${t.value}'`);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  PHASE 3 — SEMANTIC ANALYZER
+// ══════════════════════════════════════════════
+class SymbolTable {
+  constructor(p=null){this.t={};this.parent=p;}
+  define(n,type){if(this.t[n])throw new Error(`Semantic Error: Variable '${n}' already declared`);this.t[n]={type};}
+  lookup(n){if(this.t[n])return this.t[n];if(this.parent)return this.parent.lookup(n);throw new Error(`Semantic Error: '${n}' use kiya but declare nahi kiya`);}
+  update(n,type){if(this.t[n]){this.t[n].type=type;return;}if(this.parent){this.parent.update(n,type);return;}throw new Error(`Semantic Error: '${n}' assign kiya but pehle 'rakho' se declare nahi kiya`);}
+}
+
+class SemanticAnalyzer {
+  constructor(){this.scope=new SymbolTable();this.warnings=[];this.infos=[];}
+
+  analyze(node){
+    switch(node.type){
+      case'Program':node.body.forEach(s=>this.analyze(s));return'void';
+      case'VarDecl':{const t=this.analyze(node.value);this.scope.define(node.name,t);this.infos.push(`Variable '${node.name}' declared — type: ${t}`);return'void';}
+      case'Assign':{const t=this.analyze(node.value);this.scope.update(node.name,t);this.infos.push(`Variable '${node.name}' updated — type: ${t}`);return'void';}
+      case'Print':this.analyze(node.value);return'void';
+      case'If':{
+        const ct=this.analyze(node.cond);
+        if(ct==='string')this.warnings.push(`String used as condition in 'agar'`);
+        const s=new SymbolTable(this.scope),sv=this.scope;this.scope=s;
+        node.then.forEach(x=>this.analyze(x));
+        if(node.else)node.else.forEach(x=>this.analyze(x));
+        this.scope=sv;return'void';
+      }
+      case'While':{
+        const ct=this.analyze(node.cond);
+        if(ct==='string')this.warnings.push(`String used as 'jab tak' condition`);
+        const s=new SymbolTable(this.scope),sv=this.scope;this.scope=s;
+        node.body.forEach(x=>this.analyze(x));
+        this.scope=sv;return'void';
+      }
+      case'BinOp':{
+        const l=this.analyze(node.left),r=this.analyze(node.right);
+        if(['+','-','*','/','%'].includes(node.op)){
+          if(l==='string'&&r==='string'&&node.op==='+')return'string';
+          if(l==='string'||r==='string'){this.warnings.push(`Type mismatch: '${node.op}' between ${l} and ${r}`);return'any';}
+          return'number';
+        }
+        return'boolean';
+      }
+      case'Unary':this.analyze(node.expr);return'number';
+      case'Num':return'number';
+      case'Str':return'string';
+      case'Bool':return'boolean';
+      case'Ident':{const s=this.scope.lookup(node.name);return s.type??'any';}
+      default:throw new Error(`Semantic: unknown node ${node.type}`);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════
+//  PHASE 4 — CODE GENERATOR
+// ══════════════════════════════════════════════
+class CodeGenerator {
+  constructor(){this.indent=0;this.lines=[];}
+  pad(){return'  '.repeat(this.indent);}
+  emit(l){this.lines.push(this.pad()+l);}
+
+  generate(node){
+    this.emit('// ── Generated by HinglishScript Compiler ──');
+    node.body.forEach(s=>this.genStmt(s));
+    return this.lines.join('\n');
+  }
+
+  genStmt(node){
+    switch(node.type){
+      case'VarDecl':this.emit(`let ${node.name} = ${this.genExpr(node.value)};`);break;
+      case'Assign': this.emit(`${node.name} = ${this.genExpr(node.value)};`);break;
+      case'Print':  this.emit(`__print(${this.genExpr(node.value)});`);break;
+      case'If':
+        this.emit(`if (${this.genExpr(node.cond)}) {`);this.indent++;
+        node.then.forEach(s=>this.genStmt(s));this.indent--;
+        if(node.else&&node.else.length>0){
+          this.emit('} else {');this.indent++;
+          node.else.forEach(s=>this.genStmt(s));this.indent--;
+        }
+        this.emit('}');break;
+      case'While':
+        this.emit(`while (${this.genExpr(node.cond)}) {`);this.indent++;
+        node.body.forEach(s=>this.genStmt(s));this.indent--;
+        this.emit('}');break;
+    }
+  }
+
+  genExpr(n){
+    switch(n.type){
+      case'Num':  return String(n.value);
+      case'Str':  return`"${n.value}"`;
+      case'Bool': return n.value?'true':'false';
+      case'Ident':return n.name;
+      case'Unary':return`-(${this.genExpr(n.expr)})`;
+      case'BinOp':return`(${this.genExpr(n.left)} ${n.op} ${this.genExpr(n.right)})`;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════
+//  EVALUATOR (runs generated JS safely)
+// ══════════════════════════════════════════════
+function runGenerated(code) {
+  const output = [];
+  const __print = v => output.push(String(v));
+  try {
+    const fn = new Function('__print', code);
+    fn(__print);
+  } catch(e) {
+    output.push('Runtime Error: ' + e.message);
+  }
+  return output;
+}
+
+// ══════════════════════════════════════════════
+//  TOKEN COLORS
+// ══════════════════════════════════════════════
+const TOKEN_COLORS = {
+  RAKHO:'#fbbf24',AGAR:'#fbbf24',WARNA:'#fbbf24',TOH:'#fbbf24',JBTK:'#fbbf24',
+  KARO:'#fbbf24',DIKHAO:'#fbbf24',KHATAM:'#fbbf24',SAHI:'#10b981',GALAT:'#f87171',
+  NUMBER:'#60a5fa',STRING:'#fb923c',IDENT:'#e8eaf0',
+  PLUS:'#c084fc',MINUS:'#c084fc',MUL:'#c084fc',DIV:'#c084fc',MOD:'#c084fc',
+  EQ:'#f472b6',EQEQ:'#f472b6',NEQ:'#f472b6',LT:'#f472b6',GT:'#f472b6',LTE:'#f472b6',GTE:'#f472b6',
+  LPAREN:'#7a7f9a',RPAREN:'#7a7f9a',NEWLINE:'#2e3448',EOF:'#2e3448',
+};
+
+// ══════════════════════════════════════════════
+//  MAIN COMPILE FUNCTION
+// ══════════════════════════════════════════════
+function runCompiler() {
+  const src = document.getElementById('code-editor').value.trim();
+  if (!src) { alert('Kuch toh likho pehle! 😅'); return; }
+
+  // Animate pipeline
+  document.querySelector('.btn-run').classList.add('running');
+  setTimeout(() => document.querySelector('.btn-run').classList.remove('running'), 600);
+
+  // Reset step states
+  ['step-1','step-2','step-3','step-4','step-5'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('done','error','active');
+  });
+
+  let tokens, ast, semResult, jsCode, runOutput;
+
+  // ─ PHASE 1: LEXER ─
+  try {
+    const lexer = new Lexer(src);
+    tokens = lexer.tokenize();
+    document.getElementById('step-1').classList.add('done');
+    renderTokens(tokens);
+  } catch(e) {
+    document.getElementById('step-1').classList.add('error');
+    showError('tokens', e.message);
+    switchTab('tokens'); return;
+  }
+
+  // ─ PHASE 2: PARSER ─
+  try {
+    const parser = new Parser(tokens);
+    ast = parser.parse();
+    document.getElementById('step-2').classList.add('done');
+    renderAST(ast);
+  } catch(e) {
+    document.getElementById('step-2').classList.add('error');
+    showError('ast', e.message);
+    switchTab('ast'); return;
+  }
+
+  // ─ PHASE 3: SEMANTIC ─
+  try {
+    const sa = new SemanticAnalyzer();
+    sa.analyze(ast);
+    semResult = sa;
+    document.getElementById('step-3').classList.add('done');
+    renderSemantic(sa);
+  } catch(e) {
+    document.getElementById('step-3').classList.add('error');
+    showError('semantic', e.message);
+    switchTab('semantic'); return;
+  }
+
+  // ─ PHASE 4: CODE GEN ─
+  try {
+    const cg = new CodeGenerator();
+    jsCode = cg.generate(ast);
+    document.getElementById('step-4').classList.add('done');
+    renderCodeGen(jsCode);
+  } catch(e) {
+    document.getElementById('step-4').classList.add('error');
+    showError('codegen', e.message);
+    switchTab('codegen'); return;
+  }
+
+  // ─ RUN ─
+  runOutput = runGenerated(jsCode);
+  document.getElementById('step-5').classList.add('done');
+  renderOutput(runOutput);
+  switchTab('output');
+}
+
+// ══════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ══════════════════════════════════════════════
+function renderTokens(tokens) {
+  const visible = tokens.filter(t => t.type !== TokenType.EOF);
+  const html = `
+    <div style="margin-bottom:12px;font-family:'Sora',sans-serif;font-size:12px;color:var(--muted)">
+      Total tokens: <strong style="color:var(--p1)">${visible.length}</strong>
+      (excluding EOF)
+    </div>
+    <div class="token-list">
+      ${visible.map(t => {
+        const bg = TOKEN_COLORS[t.type] || '#7a7f9a';
+        const isDark = t.type === 'NEWLINE' || t.type === 'EOF';
+        if (isDark) return '';
+        const display = t.type === 'STRING' ? `"${t.value}"` : t.value;
+        return `<span class="token-chip" style="color:${bg};border-color:${bg}33;background:${bg}18" title="Line ${t.line}">
+          <span style="opacity:0.5;font-size:10px">${t.type} </span>${display}
+        </span>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('panel-tokens').innerHTML = html;
+}
+
+function renderAST(ast) {
+  function toHTML(node, depth = 0) {
+    if (node === null || node === undefined) return `<span class="ast-val">null</span>`;
+    if (typeof node === 'string') return `<span class="ast-str">"${node}"</span>`;
+    if (typeof node === 'number') return `<span class="ast-val">${node}</span>`;
+    if (typeof node === 'boolean') return `<span class="ast-val">${node}</span>`;
+    if (Array.isArray(node)) {
+      if (node.length === 0) return `<span class="ast-val">[]</span>`;
+      return `[<div style="margin-left:${(depth+1)*16}px">${node.map(n => toHTML(n, depth+1)).join(',<br>')}</div><span style="margin-left:${depth*16}px">]</span>`;
+    }
+    if (typeof node === 'object') {
+      const pad = `margin-left:${(depth+1)*16}px`;
+      const keys = Object.keys(node);
+      return `<span class="ast-node">{${node.type || ''}}</span><div style="${pad}">${
+        keys.map(k => `<span class="ast-key">${k}</span>: ${toHTML(node[k], depth+1)}`).join('<br>')
+      }</div>`;
+    }
+    return String(node);
+  }
+  document.getElementById('panel-ast').innerHTML = `
+    <div style="margin-bottom:12px;font-family:'Sora',sans-serif;font-size:12px;color:var(--muted)">
+      Abstract Syntax Tree — <strong style="color:var(--p2)">${ast.body.length} statement(s)</strong>
+    </div>
+    <div class="ast-tree">${toHTML(ast)}</div>`;
+}
+
+function renderSemantic(sa) {
+  const items = [
+    ...sa.infos.map(i => `<div class="sem-item"><span class="sem-ok">✔</span><span style="color:var(--muted)">${i}</span></div>`),
+    ...sa.warnings.map(w => `<div class="sem-item"><span class="sem-warn">⚠</span><span style="color:var(--yellow)">${w}</span></div>`),
+  ];
+  document.getElementById('panel-semantic').innerHTML = `
+    <div style="margin-bottom:12px;font-family:'Sora',sans-serif;font-size:12px;color:var(--muted)">
+      <strong style="color:var(--p3)">${sa.infos.length}</strong> declarations &nbsp;·&nbsp;
+      <strong style="color:var(--yellow)">${sa.warnings.length}</strong> warning(s) &nbsp;·&nbsp;
+      <strong style="color:var(--green)">0</strong> errors
+    </div>
+    ${items.length ? items.join('') : '<div class="sem-item"><span class="sem-ok">✔</span><span style="color:var(--muted)">No issues found — semantic analysis passed!</span></div>'}`;
+}
+
+function renderCodeGen(jsCode) {
+  document.getElementById('panel-codegen').innerHTML = `
+    <div style="margin-bottom:12px;font-family:'Sora',sans-serif;font-size:12px;color:var(--muted)">
+      Generated JavaScript — <strong style="color:var(--p4)">${jsCode.split('\n').length} lines</strong>
+    </div>
+    <pre class="gen-code">${jsCode.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+}
+
+function renderOutput(lines) {
+  const html = lines.length
+    ? lines.map(l => {
+        const isErr = l.startsWith('Runtime Error') || l.startsWith('Error');
+        return `<div class="console-line ${isErr ? 'console-err' : 'console-out'}">
+          <span style="opacity:0.4;margin-right:8px">${isErr ? '✗' : '▶'}</span>${l}
+        </div>`;
+      }).join('')
+    : `<div class="console-line console-info">Program chalaya, koi output nahi (dikhao use karo output ke liye)</div>`;
+
+  document.getElementById('panel-output').innerHTML = `
+    <div style="margin-bottom:12px;font-family:'Sora',sans-serif;font-size:12px;color:var(--muted)">
+      Console Output — <strong style="color:var(--pink)">${lines.length} line(s)</strong>
+    </div>${html}`;
+}
+
+function showError(panel, msg) {
+  document.getElementById(`panel-${panel}`).innerHTML =
+    `<div class="sem-item"><span class="sem-err">✗</span><span style="color:var(--red);font-family:'Sora',sans-serif;font-size:13px">${msg}</span></div>`;
+}
+
+// ══════════════════════════════════════════════
+//  TABS & UI
+// ══════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+  ['step-1','step-2','step-3','step-4','step-5'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = {tokens:'step-1',ast:'step-2',semantic:'step-3',codegen:'step-4',output:'step-5'};
+  if(map[name]) document.getElementById(map[name]).classList.add('active');
+}
+
+function clearAll() {
+  document.getElementById('code-editor').value = '';
+  ['tokens','ast','semantic','codegen','output'].forEach(p => {
+    const icons = {tokens:'⚡',ast:'🌳',semantic:'🔍',codegen:'⚙️',output:'▶'};
+    const msgs = {tokens:'Run the compiler to see tokens',ast:'Run the compiler to see the AST',
+                  semantic:'Run the compiler to see semantic analysis',
+                  codegen:'Run the compiler to see generated code',output:'Run the compiler to see output'};
+    document.getElementById(`panel-${p}`).innerHTML =
+      `<div class="empty-state"><div class="icon">${icons[p]}</div><p>${msgs[p]}</p></div>`;
+  });
+  ['step-1','step-2','step-3','step-4','step-5'].forEach(id =>
+    document.getElementById(id).classList.remove('done','error','active'));
+  updateLineNums();
+}
+
+// ══════════════════════════════════════════════
+//  LINE NUMBERS
+// ══════════════════════════════════════════════
+function updateLineNums() {
+  const lines = (document.getElementById('code-editor').value.match(/\n/g)||[]).length + 1;
+  document.getElementById('line-nums').textContent = Array.from({length:lines},(_,i)=>i+1).join('\n');
+}
+
+document.getElementById('code-editor').addEventListener('input', updateLineNums);
+document.getElementById('code-editor').addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = e.target, s = ta.selectionStart;
+    ta.value = ta.value.slice(0,s) + '  ' + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s + 2;
+    updateLineNums();
+  }
+});
+
+// Sync scroll line numbers
+document.getElementById('code-editor').addEventListener('scroll', function(){
+  document.getElementById('line-nums').scrollTop = this.scrollTop;
+});
+
+// ══════════════════════════════════════════════
+//  EXAMPLE PROGRAMS
+// ══════════════════════════════════════════════
+const EXAMPLES = [
+`// Example 1: Variables & Arithmetic
+rakho x = 10
+rakho y = 25
+rakho sum = x + y
+dikhao sum
+
+rakho avg = (x + y) / 2
+dikhao avg`,
+
+`// Example 2: if-warna (Condition)
+rakho marks = 85
+
+agar marks >= 90 toh
+  dikhao "A Grade - Bahut accha!"
+warna
+  agar marks >= 75 toh
+    dikhao "B Grade - Accha hai!"
+  warna
+    dikhao "Aur mehnat karo!"
+  khatam
+khatam`,
+
+`// Example 3: jab tak (While Loop)
+rakho i = 1
+rakho total = 0
+
+jab tak i <= 5 karo
+  total = total + i
+  dikhao i
+  i = i + 1
+khatam
+
+dikhao "Sum 1 se 5 tak:"
+dikhao total`,
+];
+
+function loadExample(n) {
+  document.getElementById('code-editor').value = EXAMPLES[n];
+  updateLineNums();
+}
+
+// Load example 1 on start
+loadExample(0);
+
+</script>
+</body>
+</html>
