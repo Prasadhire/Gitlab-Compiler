@@ -1,0 +1,40 @@
+stages:
+    - build
+    - test
+    - push_to_dockerhub
+    - deploy
+
+variables:
+    IMAGE_NAME: prasadhire/compiler-app
+    IMAGE_TAG: latest
+
+build_job:
+    stage: build
+    script:
+        - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    tags:
+        - dev
+
+test_job:
+    stage: test
+    script:
+        - echo "this is the test job"
+    tags:
+        - dev
+    
+push_job:
+    stage: push_to_dockerhub
+    script:
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        - docker push $IMAGE_NAME:$IMAGE_TAG
+    tags:
+        - dev
+
+deploy_job:
+    stage: deploy
+    script:
+        - docker-compose down
+        - docker-compose pull
+        - docker-compose up -d --build
+    tags:
+        - dev
