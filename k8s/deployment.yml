@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compiler-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: compiler-app
+  template:
+    metadata:
+      labels:
+        app: compiler-app
+    spec:
+      containers:
+      - name: compiler-app
+        image: prasadhire/compiler-app
+        ports:
+        - containerPort: 80
+        
